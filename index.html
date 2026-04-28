@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cost Predictor — forecasting realized clinic revenue, not billed</title>
+  <meta name="description" content="A research POC that forecasts realized medical revenue (cash that arrives) for primary-care clinics in Harris County, TX, so bonuses are sized against money that will land — not invoices.">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Cost&nbsp;Predictor</span>
+        <sub>Harris County · TX</sub>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="methodology.html">Methodology</a>
+        <a href="usage.html">Use cases</a>
+        <a href="demo.html">Live demo</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ========== HERO ========== -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero__inner">
+          <div>
+            <p class="eyebrow">A research instrument for primary-care RCM</p>
+            <h1>Forecast the cash<br>that <em>actually&nbsp;arrives.</em></h1>
+            <p class="lede">
+              Clinics in Harris County bill millions and collect a fraction of it — Texas
+              Medicaid pays primary care at <strong>52¢ on the Medicare dollar</strong>.
+              Sizing physician bonuses against billed revenue is a working-capital trap.
+              Cost Predictor sizes them against revenue that will land.
+            </p>
+            <div class="btn-row">
+              <a class="btn" href="demo.html">Try the live demo</a>
+              <a class="btn btn--ghost" href="methodology.html">Read the methodology</a>
+            </div>
+          </div>
+
+          <aside class="hero__numbers" aria-label="Headline result">
+            <div class="stat-grid">
+              <div class="stat">
+                <div class="stat__label">Approach&nbsp;B · per-payer</div>
+                <div class="stat__value stat__value--accent num-old">0.023</div>
+                <div class="stat__sub">breach rate at p10 (target ≤ 0.10)</div>
+              </div>
+              <div class="stat">
+                <div class="stat__label">Approach&nbsp;A · per-payer</div>
+                <div class="stat__value num-old">0.112</div>
+                <div class="stat__sub">⚠ exceeds threshold on 3&nbsp;of&nbsp;5 payers</div>
+              </div>
+            </div>
+            <p class="footer-meta" style="text-align:left; margin-top:.9rem;">
+              Synthea · 2-year window · pooled origin&nbsp;eval
+            </p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== WHAT IT DOES ========== -->
+    <section class="container" style="padding-top:4rem;">
+      <p class="eyebrow">What it does</p>
+      <h2 class="prose" style="margin-bottom:1.6rem;">Three answers, one model.</h2>
+
+      <div class="cards">
+        <article class="card">
+          <div class="card__num">№ 01</div>
+          <h3>Cash-flow forecast</h3>
+          <p>
+            Quantile forecasts of realized revenue (p10 / p50 / p90) per period.
+            The lower tail is load-bearing — bonus pools size against p10, not the mean.
+          </p>
+        </article>
+        <article class="card">
+          <div class="card__num">№ 02</div>
+          <h3>Payer-mix sensitivity</h3>
+          <p>
+            Right-censored lag curves and Beta gross-collection priors per payer
+            (Medicare FFS, MA, Medicaid FFS/MCO, commercial, self-pay) decompose
+            the forecast into the levers that move it.
+          </p>
+        </article>
+        <article class="card">
+          <div class="card__num">№ 03</div>
+          <h3>Bonus-pool sizing</h3>
+          <p>
+            One worked answer: a $5M-monthly clinic sizing 5% of p10 leaves
+            roughly <span class="num-tab">$230K</span> on the table per window
+            versus a perfect-forecast counterfactual — and zero over-allocation risk.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ========== HOW IT WORKS (TLDR) ========== -->
+    <section class="container">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>Phase&nbsp;6</span>
+          <em>The production model decomposes a TimesFM&nbsp;2.5 billing forecast through per-payer lag curves and a Monte-Carlo convolution.</em>
+        </aside>
+        <div class="prose">
+          <p class="eyebrow">In one paragraph</p>
+          <h2>From a billed series to realized cash, by way of survival analysis.</h2>
+          <p class="dropcap">
+            The pipeline ingests aggregated billing (currently Synthea-generated; partner-clinic
+            835&nbsp;ERA next), forecasts gross billed with a quantile time-series model,
+            splits each forecast period by payer mix, and lag-shifts each payer's dollars
+            through a hybrid Kaplan–Meier&nbsp;+ LogNormal curve fit on right-censored
+            payment-delay observations. The result is a per-period distribution of
+            <em>realized</em> dollars — the number a clinic admin can write a bonus
+            check against.
+          </p>
+          <p>
+            Approach&nbsp;A — a single pooled time-series forecast of realized revenue —
+            looks fine in aggregate (<span class="num-tab">0.069</span> pooled breach)
+            but fails per-payer reporting. Approach&nbsp;B passes everywhere.
+            <a href="methodology.html#approaches">Why →</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== TRUST / DISCLOSURE ========== -->
+    <section class="container">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>Honest&nbsp;§</span>
+          <em>Public-source proxies, not measured ERAs. Read this before quoting numbers.</em>
+        </aside>
+        <div class="prose">
+          <p class="eyebrow">What this is — and isn't</p>
+          <h2>A research POC, calibrated to public sources.</h2>
+          <p>
+            Cost Predictor is a Python research artifact, not a commercial product.
+            It runs on synthetic patient data from <a href="https://github.com/synthetichealth/synthea">Synthea&nbsp;v4.0.0</a>
+            (Harris-County demographics, Texas Medicaid MCO payer encoding) and
+            calibrates per-payer denial / lag / GCR priors against published sources:
+          </p>
+          <ul class="dash">
+            <li>KFF · Medicaid-to-Medicare fee index, 2024 (Texas primary-care 0.52)</li>
+            <li>HRSA UDS Texas Table 4 — per-FQHC payer mix</li>
+            <li>Premier Inc. 2024 hospital denial survey (~15% commercial / Medicaid initial denial)</li>
+            <li>Texas Department of Insurance prompt-pay statutes (30/45-day floors)</li>
+            <li>HFMA MAP Award 2024 — self-pay collection benchmarks</li>
+          </ul>
+          <div class="disclose">
+            <h4>Stated honestly</h4>
+            <p>
+              No real 835 ERA data has been ingested yet. Accuracy is bounded to
+              <strong>"directionally useful for cash-flow risk management against the
+              configured payer mix"</strong> — not a substitute for clinic-specific
+              historical adjudication data. The single highest-leverage upgrade is a
+              partner-clinic 835 feed under BAA.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CTA ========== -->
+    <section class="container">
+      <div style="border-top:1px solid var(--ink); padding-top:2.5rem; display:grid; grid-template-columns:1fr auto; gap:2rem; align-items:end;">
+        <div class="prose">
+          <h2 style="margin:0 0 .35em;">Three ways in.</h2>
+          <p style="color:var(--ink-mute); margin:0;">
+            Spend ninety seconds in the live Monte-Carlo demo, read the methodology end-to-end,
+            or install locally and run the experiment runner against the Synthea fixture.
+          </p>
+        </div>
+        <div class="btn-row">
+          <a class="btn" href="demo.html">Demo</a>
+          <a class="btn btn--ghost" href="methodology.html">Methodology</a>
+          <a class="btn btn--ghost" href="install.html">Install</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p class="colophon">
+        <strong>Cost Predictor</strong> — built as a working artifact alongside
+        the system-design document. Set in Iowan Old Style and the system sans;
+        no analytics, no third-party fonts, no build step. Source on
+        <a href="https://github.com/GrayBeamTechnology/cost-predictor">GitHub</a>.
+      </p>
+      <p class="footer-meta">
+        © 2026 · GrayBeam Technology<br>
+        Houston · Locality 18
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/site.js"></script>
+</body>
+</html>

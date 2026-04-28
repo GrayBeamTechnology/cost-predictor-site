@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Methodology — Cost Predictor</title>
+  <meta name="description" content="The four-phase architecture, lag-curve estimator, Monte-Carlo convolution, and evaluation methodology behind Cost Predictor.">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Cost&nbsp;Predictor</span>
+        <sub>Harris County · TX</sub>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="methodology.html" aria-current="page">Methodology</a>
+        <a href="usage.html">Use cases</a>
+        <a href="demo.html">Live demo</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="hero" style="padding-bottom:2.5rem;">
+      <div class="container">
+        <p class="eyebrow">Methodology</p>
+        <h1 style="max-width:18ch;">From billed dollars to a defensible bonus check.</h1>
+        <p class="lede">
+          The full pipeline, in seven sections. No hand-waving — every constant
+          on this page traces back to a public source or a unit test.
+        </p>
+      </div>
+    </section>
+
+    <section class="container" style="margin-top:3rem;">
+      <nav class="toc" aria-label="On this page">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#problem">The problem</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#approaches">Approach A vs Approach B</a></li>
+          <li><a href="#lag-curve">The lag curve</a></li>
+          <li><a href="#convolution">The convolution</a></li>
+          <li><a href="#calibration">Calibration &amp; evaluation</a></li>
+          <li><a href="#tighten">What would tighten the model</a></li>
+        </ol>
+      </nav>
+    </section>
+
+    <!-- ========== § 1 PROBLEM ========== -->
+    <section class="container" id="problem">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 01</span>
+          <em>Why billed-revenue bonuses break clinics that mix Medicaid with private payers.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 1</span>The problem</h2>
+          <p>
+            Healthcare revenue cycle management splits billed charges from realized
+            cash by three independent mechanisms: contractual fee-schedule
+            adjustments (Medicare PFS, Medicaid programs, commercial contracts),
+            initial denials, and adjudication lag. Each varies by payer; together
+            they make a single &ldquo;collection rate&rdquo; misleading.
+          </p>
+          <p>
+            For a Harris&nbsp;County primary-care clinic, three numbers structure the gap:
+          </p>
+          <ul class="dash">
+            <li><strong>Texas Medicaid pays primary care at 0.52× Medicare</strong>
+              (Skopec, Pugazhendhi, Zuckerman, <em>Health&nbsp;Affairs</em>&nbsp;2024).
+              That alone makes the realization rate of a Medicaid-heavy clinic
+              materially below a commercial-heavy one of equivalent volume.</li>
+            <li><strong>Initial denial rates run 8–17%</strong> by payer (Premier&nbsp;2024
+              hospital survey; KFF&nbsp;2024). About half are reversed on appeal —
+              terminal denial 4–8%.</li>
+            <li><strong>Adjudication lag spans 14 to 90+ days.</strong> Medicare's
+              clean-claim 14-day floor and Texas TDI's 30/45-day prompt-pay rules
+              set lower bounds; the right tail is the operationally costly part.</li>
+          </ul>
+          <p class="pull">
+            Sizing a bonus pool against billed revenue is, mechanically, a
+            short-term loan from the clinic to its physicians — payable at a
+            haircut and a delay neither party has priced.
+          </p>
+          <p>
+            Cost Predictor's product question is sharply scoped:
+            <em>of one dollar billed today against the clinic's actual payer mix,
+            how many cents will arrive — and when?</em> The answer is a quantile
+            forecast, not a point estimate. That distinction is load-bearing.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 2 ARCHITECTURE ========== -->
+    <section class="container" id="architecture">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 02</span>
+          <em>Four phases: ingestion → denial classification → forecast → bonus allocation. Phase 2 is documented but not yet implemented.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 2</span>Architecture</h2>
+          <p>
+            The pipeline is sequenced by data dependency, not by code modules.
+            Phase&nbsp;1 produces a daily aggregate-billed series and a per-claim
+            outstanding ledger; Phase&nbsp;3 forecasts the billed series; Phase&nbsp;4
+            convolves through Phase&nbsp;5's lag curves to produce realized; the
+            bonus-pool calculator operates on the resulting quantiles.
+          </p>
+
+          <figure class="figure" id="architecture-diagram">
+            <svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: ingestion to bonus pool">
+              <defs>
+                <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#1B1A17"/>
+                </marker>
+                <pattern id="diag-hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                  <line x1="0" y1="0" x2="0" y2="6" stroke="#C9C0AE" stroke-width="1.4"/>
+                </pattern>
+              </defs>
+
+              <!-- Phase boxes -->
+              <!-- P1 -->
+              <g>
+                <rect x="20" y="40" width="150" height="92" fill="#FFFFFF" stroke="#1B1A17" stroke-width="1"/>
+                <text x="34" y="62" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Phase 1</text>
+                <text x="34" y="84" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">Ingestion</text>
+                <text x="34" y="104" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">837 / 835 EDI · CSV</text>
+                <text x="34" y="118" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">aggregate(daily, payer)</text>
+              </g>
+
+              <!-- P2 (dashed - not yet implemented) -->
+              <g>
+                <rect x="200" y="40" width="150" height="92" fill="#FAF6EE" stroke="#7A2E2E" stroke-width="1" stroke-dasharray="4,3"/>
+                <text x="214" y="62" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Phase 2 · planned</text>
+                <text x="214" y="84" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">Denial classifier</text>
+                <text x="214" y="104" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">XGBoost / LightGBM</text>
+                <text x="214" y="118" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">P(deny | payer, code)</text>
+              </g>
+
+              <!-- P3 -->
+              <g>
+                <rect x="380" y="40" width="150" height="92" fill="#FFFFFF" stroke="#1B1A17" stroke-width="1"/>
+                <text x="394" y="62" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Phase 3</text>
+                <text x="394" y="84" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">Billing forecast</text>
+                <text x="394" y="104" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">TimesFM 2.5 — 200M</text>
+                <text x="394" y="118" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">native quantile head</text>
+              </g>
+
+              <!-- P5 (lag) -->
+              <g>
+                <rect x="20" y="200" width="150" height="92" fill="#FFFFFF" stroke="#1B1A17" stroke-width="1"/>
+                <text x="34" y="222" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Phase 5a</text>
+                <text x="34" y="244" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">Lag curves</text>
+                <text x="34" y="264" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">KM body + LogNormal tail</text>
+                <text x="34" y="278" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">EB-shrunk to YAML priors</text>
+              </g>
+
+              <!-- P5 (convolution) -->
+              <g>
+                <rect x="200" y="200" width="150" height="92" fill="url(#diag-hatch)" stroke="#1B1A17" stroke-width="1"/>
+                <rect x="200" y="200" width="150" height="92" fill="#FAF6EE" fill-opacity="0.85" stroke="none"/>
+                <text x="214" y="222" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Phase 5b</text>
+                <text x="214" y="244" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">MC convolution</text>
+                <text x="214" y="264" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">5,000 trials × per payer</text>
+                <text x="214" y="278" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">+ carryforward branch</text>
+              </g>
+
+              <!-- P6 (bonus) -->
+              <g>
+                <rect x="380" y="200" width="150" height="92" fill="#1B1A17" stroke="#1B1A17"/>
+                <text x="394" y="222" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#E9C16A">Phase 6</text>
+                <text x="394" y="244" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#F4EFE6">Bonus pool</text>
+                <text x="394" y="264" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#C9C0AE">5% × p10 realized</text>
+                <text x="394" y="278" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#C9C0AE">vs naive 5% × billed</text>
+              </g>
+
+              <!-- Output (right-side) -->
+              <g>
+                <rect x="560" y="120" width="140" height="92" fill="#FFFFFF" stroke="#1B1A17" stroke-width="1"/>
+                <text x="574" y="142" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Output</text>
+                <text x="574" y="164" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-size="15" fill="#1B1A17">Realized $</text>
+                <text x="574" y="184" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">p10 / p50 / p90</text>
+                <text x="574" y="198" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="#6B655B">per period · per payer</text>
+              </g>
+
+              <!-- Arrows -->
+              <line x1="170" y1="86" x2="200" y2="86" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <line x1="350" y1="86" x2="380" y2="86" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <!-- P1 to P5a (down) -->
+              <path d="M 95 132 L 95 200" fill="none" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <!-- P5a to P5b -->
+              <line x1="170" y1="246" x2="200" y2="246" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <!-- P3 down to P5b -->
+              <path d="M 455 132 L 455 168 L 275 168 L 275 200" fill="none" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <!-- P5b to P6 -->
+              <line x1="350" y1="246" x2="380" y2="246" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+              <!-- P6 to Output -->
+              <path d="M 530 220 L 560 180" fill="none" stroke="#1B1A17" stroke-width="1" marker-end="url(#arr)"/>
+
+              <!-- Decorative axis -->
+              <text x="20" y="332" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" letter-spacing="0.16em" fill="#9A9286">FLOW</text>
+              <line x1="60" y1="328" x2="700" y2="328" stroke="#C9C0AE" stroke-width="0.5"/>
+              <text x="700" y="332" text-anchor="end" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" letter-spacing="0.16em" fill="#9A9286">BONUS&nbsp;CHECK</text>
+            </svg>
+            <figcaption><strong>Fig 1</strong> Phase 2 (denial classifier) is documented in the system design but not yet implemented; downstream phases currently treat the input billing series as already adjudicated through the per-payer denial Bernoulli inside the convolver.</figcaption>
+          </figure>
+
+          <h3>Inputs</h3>
+          <p>
+            In production the ingestion layer reads <code>837</code> claim and
+            <code>835</code> remittance EDI files (or flattened EHR/PM CSV exports
+            keyed on Date of Service) and produces a daily aggregate. The
+            evaluation harness substitutes Synthea v4.0.0 with a Texas-Medicaid
+            MCO encoding plus a post-generation adjudication injector that
+            attaches per-payer denial / lag / GCR draws.
+          </p>
+
+          <h3>State of Phase 2</h3>
+          <p>
+            The denial classifier (XGBoost / LightGBM, scored before forecasting)
+            is documented in §2.1 of the system design but not yet built. Today
+            the per-payer Bernoulli denial draw inside the Monte-Carlo convolver
+            stands in for the classifier's expected output — a defensible
+            simplification while terminal-denial empirical rates are bracketed
+            at 4–8% and dwarfed by lag and GCR uncertainty in the pooled
+            forecast variance.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 3 APPROACHES ========== -->
+    <section class="container" id="approaches">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 03</span>
+          <em>Two model families. One ships.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 3</span>Approach A vs Approach&nbsp;B</h2>
+          <p>
+            Two forecasting routes were evaluated head-to-head on the Synthea
+            evaluation set. Both use Google Research's TimesFM 2.5 (200M
+            parameters, native quantile head) as the time-series engine.
+          </p>
+          <ul class="dash">
+            <li><strong>Approach A.</strong> Univariate forecast of <em>realized</em>
+              revenue directly. The simpler model: one TimesFM fit, one
+              quantile output, done.</li>
+            <li><strong>Approach B.</strong> Decompose. Forecast <em>billed</em>
+              revenue with TimesFM, then convolve through per-payer lag
+              curves and a Beta-GCR factor inside a Monte-Carlo simulator
+              to produce realized.</li>
+          </ul>
+          <p>
+            On pooled origin evaluation, A passes the product threshold
+            (<code>breach_rate_p10&nbsp;= 0.069</code>). When evaluation is
+            broken out per payer — the mode clinic admins actually need —
+            A breaches threshold on <strong>three of five payers</strong>.
+            B passes everywhere.
+          </p>
+
+          <table>
+            <caption>Per-payer breach rate at p10, Synthea, no calibration</caption>
+            <thead>
+              <tr>
+                <th>Payer</th>
+                <th class="num">A · TimesFM</th>
+                <th class="num">B · TimesFM-decomposed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Commercial</td><td class="num warn">0.1004 ⚠</td><td class="num">0.0738</td></tr>
+              <tr><td>Medicaid MCO</td><td class="num warn">0.1778 ⚠</td><td class="num">0.0000</td></tr>
+              <tr><td>Medicare Advantage</td><td class="num">0.0159</td><td class="num">0.0000</td></tr>
+              <tr><td>Medicare FFS</td><td class="num">0.0835</td><td class="num">0.0165</td></tr>
+              <tr><td>Self-pay</td><td class="num warn">0.1142 ⚠</td><td class="num">0.0000</td></tr>
+              <tr><td><strong>Pooled</strong></td><td class="num warn"><strong>0.1122 ⚠</strong></td><td class="num win"><strong>0.0230</strong></td></tr>
+            </tbody>
+          </table>
+
+          <p>
+            B is structurally legible — it tells admins <em>which payer</em>
+            is driving over-allocation risk — and it inherits the right
+            substitution path: when measured 835&nbsp;ERA data lands, the
+            YAML priors are replaced in place with measured per-payer
+            lag and realization-rate distributions; nothing else changes.
+          </p>
+          <p class="callout">
+            <strong>Verdict:</strong> ship Approach&nbsp;B uncalibrated, with
+            <code>--by-payer</code> as the recommended runtime mode. Calibration
+            wrappers (split-conformal, isotonic-PIT) stay in the codebase for
+            ARIMA/Prophet but neither A nor B benefits.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 4 LAG CURVE ========== -->
+    <section class="container" id="lag-curve">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 04</span>
+          <em>Right-censoring matters because at any origin t, some claims billed near t haven't been paid yet.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 4</span>The lag curve</h2>
+          <p>
+            For each payer, the lag distribution is the PDF of <em>days from
+            claim submission to first remit</em>, conditioned on eventual
+            payment. Two empirical realities shape the choice of estimator:
+          </p>
+          <ul class="dash">
+            <li><strong>Right-censoring.</strong> At any origin <code>t</code>,
+              claims billed near <code>t</code> have not been paid yet —
+              they are not denied, they are not slow, they are simply
+              unobserved. Treating them as missing biases the fit toward
+              fast claims.</li>
+            <li><strong>Heavy right tail.</strong> The 90th-percentile lag
+              is where bonus-pool breach risk concentrates. A model that
+              fits the body well but not the tail will look good on
+              MAPE and fail on <code>breach_rate_p10</code>.</li>
+          </ul>
+
+          <h3>Estimator</h3>
+          <p>
+            Hybrid: <strong>Kaplan–Meier</strong> non-parametric body up to
+            the 0.8 KM-quantile, stitched onto a <strong>LogNormal</strong>
+            tail fit by censored MLE. KM is unbiased through the body without
+            assuming a distributional family; the LogNormal extrapolates
+            past the largest observed lag, which is exactly where breach
+            risk lives.
+          </p>
+          <pre><code>L(μ, σ) = Σ_uncensored log f(x_i; μ, σ)
+       + Σ_censored   log S(T_j; μ, σ)</code></pre>
+          <p>
+            <code>f</code> is the LogNormal PDF; <code>S = 1 - F</code> is the
+            survival function. The censored-MLE log-likelihood reduces to
+            an ordinary LogNormal MLE when no observations are censored.
+          </p>
+
+          <h3>Empirical-Bayes shrinkage</h3>
+          <p>
+            For payers with few events, the MLE overfits the small sample.
+            The fit is shrunk toward the <code>adjudication_params.yaml</code>
+            prior with weight <code>w = n_p / (n_p + 50)</code> — MLE
+            dominates above ~150 events, prior dominates below ~10. For
+            <code>n_p &lt; 30</code> a pure prior is used. The shrinkage
+            target is the cited per-payer YAML, which is itself sourced
+            from Premier 2024, KFF 2024, and TDI prompt-pay statutes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 5 CONVOLUTION ========== -->
+    <section class="container" id="convolution">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 05</span>
+          <em>Per-period, per-payer Monte-Carlo. Carryforward of pre-origin outstanding dollars rides a separate branch.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 5</span>The convolution</h2>
+          <p>
+            The composer (<code>models/timesfm_b.py</code>) takes a per-period
+            quantile billing forecast and produces a per-period quantile
+            realized forecast in three steps:
+          </p>
+          <ol>
+            <li><strong>Sample billing draws.</strong> For each forecast period
+              <code>k</code>, sample 5,000 billing values via inverse-CDF
+              interpolation on the TimesFM quantile array, with log-linear
+              extrapolation outside <code>[q<sub>min</sub>, q<sub>max</sub>]</code>.</li>
+            <li><strong>Split by payer mix.</strong> Each draw is split across
+              the six payer categories using the configured mix
+              (HRSA UDS Texas Table 4 by default).</li>
+            <li><strong>Lag-shift each payer's dollars.</strong> Sample a lag
+              from that payer's curve for every dollar; accumulate the dollar
+              into the period it lands in. Apply the deterministic realization
+              factor <code>(1 - denial_p) × E[GCR_p]</code>.</li>
+          </ol>
+          <p>
+            <strong>Carryforward.</strong> Pre-origin outstanding dollars
+            (claims already billed but not yet paid) are sampled separately,
+            with the lag conditioned on <code>lag &gt; T_k</code> via rejection
+            sampling, so the pre-origin tail lands in the correct forecast
+            periods. This is load-bearing for early-horizon accuracy — without
+            it, the first 14 days of any forecast underbills systematically.
+          </p>
+          <h3>Why deterministic GCR &amp; denial</h3>
+          <p>
+            The Beta-GCR variance and the binary denial draw contribute small
+            tail width relative to the lag and billing-quantile draws when
+            aggregated to a daily/weekly period. Using <code>E[GCR]</code> and
+            <code>E[deny] = denial_p</code> as the per-dollar realization factor
+            keeps the convolver fast (~5,000 trials × 6 payers × 30-day
+            horizon in &lt;100&nbsp;ms) without measurable loss of fidelity
+            on the Synthea evaluation set. This is one of the levers that
+            tightens further if real ERA data shows tail under-dispersion.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 6 CALIBRATION ========== -->
+    <section class="container" id="calibration">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 06</span>
+          <em>Rolling-origin, leakage-masked, scored on a proper rule and a product threshold.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 6</span>Calibration &amp; evaluation</h2>
+          <p>
+            Every model is evaluated identically: rolling origin, with an
+            <code>as_of</code> leakage mask that hides any remit date later
+            than the origin from the training history. Two quantitative
+            metrics, one product metric:
+          </p>
+          <ul class="dash">
+            <li><strong>Pinball loss</strong> at q=0.10 — sharpness-aware
+              proper score at the bonus-relevant quantile. Lower is sharper
+              at equal coverage.</li>
+            <li><strong>Coverage</strong> at q=0.90 — fraction of held-out
+              actuals below the p90 forecast. Diagnostic, not load-bearing.</li>
+            <li><strong>breach_rate_p10</strong> — the product threshold:
+              the empirical fraction of held-out actuals below the p10
+              forecast. <em>Target ≤ 0.10.</em> Above 0.10 means the
+              clinic over-allocates bonus pool more often than the model
+              claims; well below 0.10 means the clinic is sandbagging
+              bonuses (leaving money on the table for staff).</li>
+          </ul>
+
+          <h3>PIT histograms</h3>
+          <p>
+            PIT histograms binned at 4 quantile levels (below-p10, p10–p50,
+            p50–p90, above-p90) collapse to four atoms, so the smoothness
+            test is the wrong diagnostic at this granularity. The legibility
+            test is the proportion in the edge bin — the fraction of held-out
+            actuals that fall below the p10. That's the
+            <code>breach_rate_p10</code>. Approach&nbsp;B's per-payer
+            histogram shows <span class="num-tab">0.023</span> in the
+            below-p10 bin — well-calibrated and conservative.
+          </p>
+
+          <h3>Calibration wrappers</h3>
+          <p>
+            Two post-hoc calibration wrappers sit in the evaluation harness:
+            <strong>split-conformal</strong> (residual-based) and
+            <strong>isotonic-PIT</strong> (monotone re-mapping of nominal
+            to empirical CDF). Both help ARIMA on Synthea (where analytic
+            Gaussian intervals over-conservate and breach drops too low);
+            neither helps TimesFM-A or TimesFM-B, which are quantile-native.
+            Split-conformal in particular over-corrects A —
+            <code>0.069 → 0.158</code>, pushing past the threshold.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== § 7 TIGHTEN ========== -->
+    <section class="container" id="tighten">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§ 07</span>
+          <em>The accuracy ceiling is set by the data layer, not the modeling layer.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§ 7</span>What would tighten the model</h2>
+          <p>
+            The current accuracy claim is bounded to <em>directionally useful for
+            cash-flow risk management against the configured payer mix</em>.
+            Three upgrades, in priority order:
+          </p>
+          <ol>
+            <li>
+              <strong>Partner-clinic 835 ERA feed under BAA.</strong> Replaces the
+              post-generation adjudication injector with measured per-payer lag
+              and realization-rate distributions. <em>Single highest-leverage
+              upgrade.</em> Drops the YAML priors as the EB shrinkage target
+              and substitutes them with empirical curves. Also unlocks
+              multi-remit support (initial pay → recoupment → secondary),
+              currently a structural gap documented in the lag-curve loader's
+              TODO.
+            </li>
+            <li>
+              <strong>MGMA DataDive Texas/Gulf-Coast cut.</strong> Calibrates
+              non-FQHC primary-care payer mix that HRSA UDS doesn't cover.
+              Useful when the deployment context shifts from FQHC to
+              independent practice.
+            </li>
+            <li>
+              <strong>Athenahealth Network Insights or equivalent.</strong>
+              Measured per-payer adjudication-delay percentiles to replace
+              the statutory-floor seeding of the YAML priors.
+            </li>
+          </ol>
+          <p>
+            One known gap is deliberate: Synthea's eligibility-driven payer
+            mix differs structurally from HRSA UDS Texas FQHC Table 4
+            (Synthea-heavy Medicare/commercial; FQHC-heavy
+            Medicaid/uninsured). Closing it requires demographic re-weighting,
+            deferred. Per-payer behavioral fidelity (denial / lag / GCR) —
+            which drives the p10/p90 width that the bonus-pool decision
+            depends on — is intact.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p class="colophon">
+        Source: <a href="https://github.com/GrayBeamTechnology/cost-predictor">github.com/GrayBeamTechnology/cost-predictor</a> · 155 unit tests pass in ~7s. The full system-design document, with citations, lives in <code>SYSTEM_DESIGN.md</code> in the repo.
+      </p>
+      <p class="footer-meta">
+        © 2026 · GrayBeam Technology<br>
+        Houston · Locality 18
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/site.js"></script>
+</body>
+</html>

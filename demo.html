@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live demo — Cost Predictor</title>
+  <meta name="description" content="Interactive Monte-Carlo demo: tune monthly billed revenue, payer mix, and bonus rate, watch the realized-revenue forecast and bonus pool size update in real time.">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Cost&nbsp;Predictor</span>
+        <sub>Harris County · TX</sub>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="methodology.html">Methodology</a>
+        <a href="usage.html">Use cases</a>
+        <a href="demo.html" aria-current="page">Live demo</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="hero" style="padding-bottom:2rem;">
+      <div class="container">
+        <p class="eyebrow">Interactive demo</p>
+        <h1 style="max-width:18ch;">Move a slider. Watch the forecast move.</h1>
+        <p class="lede">
+          A simplified Monte-Carlo of the production model — runs entirely
+          in your browser, no network round-trip. Default mix is HRSA UDS
+          Texas; default trial count is 1,000.
+        </p>
+      </div>
+    </section>
+
+    <section class="container" style="margin-top:2rem;">
+      <div class="demo-grid">
+
+        <!-- ========== CONTROLS ========== -->
+        <aside class="controls" aria-label="Demo inputs">
+          <h2>Inputs</h2>
+
+          <div class="field">
+            <div class="field__head">
+              <label for="monthly-billed" class="field__label">Monthly billed revenue</label>
+              <span class="field__value" id="monthly-billed-value">$5,000,000</span>
+            </div>
+            <input type="range" id="monthly-billed" min="1000000" max="20000000" step="250000" value="5000000" aria-label="Monthly billed revenue in dollars">
+            <div class="field__sub">$1M to $20M</div>
+          </div>
+
+          <div class="field">
+            <div class="field__head">
+              <label for="bonus-rate" class="field__label">Bonus rate</label>
+              <span class="field__value" id="bonus-rate-value">5.0%</span>
+            </div>
+            <input type="range" id="bonus-rate" min="1" max="10" step="0.5" value="5" aria-label="Bonus rate as percentage of realized">
+            <div class="field__sub">1% to 10% of realized</div>
+          </div>
+
+          <div class="field">
+            <div class="field__head">
+              <span class="field__label">Monte-Carlo trials</span>
+            </div>
+            <div class="radio-row" role="radiogroup" aria-label="Number of Monte-Carlo trials">
+              <label><input type="radio" name="trials" value="100"><span>100</span></label>
+              <label><input type="radio" name="trials" value="1000" checked><span>1,000</span></label>
+              <label><input type="radio" name="trials" value="5000"><span>5,000</span></label>
+            </div>
+            <div class="field__sub">More trials = smoother distribution; 1k is the sweet spot.</div>
+          </div>
+
+          <div style="border-top:1px solid var(--rule); margin-top:1.4rem; padding-top:1.2rem;">
+            <div class="field__head" style="margin-bottom:.7rem;">
+              <span class="field__label">Payer mix</span>
+              <span class="field__value" id="mix-total">100%</span>
+            </div>
+            <div id="payer-mix"></div>
+            <p class="field__sub" style="margin-top:.65rem;">
+              Sliders soft-renormalize — moving one scales the others
+              proportionally to keep the total at 100%.
+            </p>
+          </div>
+
+          <div style="border-top:1px solid var(--rule); margin-top:1.4rem; padding-top:1rem;">
+            <p id="perf" class="field__sub" style="font-family:var(--mono); font-size:.7rem; color:var(--ink-faint);">computing…</p>
+          </div>
+        </aside>
+
+        <!-- ========== READOUTS ========== -->
+        <div class="readouts">
+
+          <!-- Headline numbers -->
+          <div class="readout-grid">
+            <div class="readout">
+              <div class="readout__label">Predicted realized · p50</div>
+              <div class="readout__value" id="hd-p50">—</div>
+              <div class="readout__sub" id="hd-p50-sub">median across trials</div>
+            </div>
+            <div class="readout">
+              <div class="readout__label">Worst case · p10</div>
+              <div class="readout__value readout__value--accent" id="hd-p10">—</div>
+              <div class="readout__sub" id="hd-p10-sub">10th percentile</div>
+            </div>
+            <div class="readout">
+              <div class="readout__label">Best case · p90</div>
+              <div class="readout__value" id="hd-p90">—</div>
+              <div class="readout__sub" id="hd-p90-sub">90th percentile</div>
+            </div>
+          </div>
+
+          <!-- Bonus banner: the headline outcome -->
+          <div class="banner" role="status" aria-live="polite">
+            <div>
+              <div class="banner__title">Money saved by sizing against p10</div>
+              <div class="banner__value" id="hd-saved">—</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="banner__title">Safe pool · 5% of p10</div>
+              <div style="font-family:var(--serif); font-feature-settings:'onum' 1, 'pnum' 1; font-size:1.4rem; color:var(--paper);" id="hd-safe">—</div>
+              <div class="banner__title" style="margin-top:.5rem; opacity:.5;">Naive · 5% of billed → <span id="hd-naive" style="font-style:italic;">—</span></div>
+            </div>
+          </div>
+
+          <!-- Calibration cue badge -->
+          <div style="margin-bottom:1.2rem;">
+            <span id="breach-badge" class="badge badge--good">
+              <span class="badge__dot"></span>
+              Breach risk · 0.0%
+            </span>
+            <span style="font-family:var(--sans); font-size:.78rem; color:var(--ink-mute); margin-left:.6rem;">
+              fraction of trials below 90% of p10 — the safety margin
+            </span>
+          </div>
+
+          <!-- Per-payer bar chart -->
+          <div class="chart-block">
+            <h3>Per-payer realized vs billed (mean)</h3>
+            <svg id="chart-bars" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Per-payer billed and realized bars"></svg>
+          </div>
+
+          <!-- Forecast histogram -->
+          <div class="chart-block">
+            <h3>Forecast distribution · realized $ across trials</h3>
+            <svg id="chart-hist" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Histogram of realized revenue across Monte-Carlo trials"></svg>
+          </div>
+
+          <p style="font-family:var(--sans); font-size:.85rem; color:var(--ink-mute); max-width:60ch;">
+            <strong>How this differs from the production model.</strong>
+            The browser demo runs the per-payer denial × Beta-GCR factor
+            without the lag-curve convolution — i.e., it answers
+            &ldquo;how much will this month's billing realize across
+            <em>all</em> future periods?&rdquo;, not the per-period
+            forecast the production model produces. The point of the
+            demo is intuition for the payer-mix lever; for the full
+            time-series forecast read the
+            <a href="methodology.html">methodology</a>.
+          </p>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p class="colophon">
+        All math runs in your browser — see <code>assets/demo.js</code>.
+        Beta sampling via Marsaglia–Tsang Gamma; quantiles from a sorted
+        trial array. Constants from
+        <code>config/adjudication_params.yaml</code>.
+      </p>
+      <p class="footer-meta">
+        © 2026 · GrayBeam Technology<br>
+        Houston · Locality 18
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/site.js"></script>
+  <script src="assets/demo.js"></script>
+</body>
+</html>

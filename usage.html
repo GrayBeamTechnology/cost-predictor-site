@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Use cases — Cost Predictor</title>
+  <meta name="description" content="What Cost Predictor is for: bonus-pool sizing, cash-flow planning, and payer-mix sensitivity analysis for primary-care clinics in Harris County, TX.">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Cost&nbsp;Predictor</span>
+        <sub>Harris County · TX</sub>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="methodology.html">Methodology</a>
+        <a href="usage.html" aria-current="page">Use cases</a>
+        <a href="demo.html">Live demo</a>
+        <a href="install.html">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="hero" style="padding-bottom:2.5rem;">
+      <div class="container">
+        <p class="eyebrow">What it's for</p>
+        <h1 style="max-width:18ch;">Three operational answers, one model.</h1>
+        <p class="lede">
+          Worked examples drawn from the Phase&nbsp;6 evaluation set. Every dollar
+          on this page is rescaled to a $5M-monthly reference clinic using
+          the same scale factor the auto-generated report uses.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== USE CASE 1 ========== -->
+    <section class="container" id="bonus-pool">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>Use&nbsp;01</span>
+          <em>The original product question. The naive answer is a haircut waiting to happen.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">Use 1</span>Sizing a bonus pool</h2>
+          <p class="dropcap">
+            A primary-care clinic with $5M/month in billed revenue wants to
+            allocate 5% to a physician/staff bonus pool. The naive
+            arithmetic: <code>5,000,000 × 0.05 = 250,000</code>. Easy.
+            Wrong.
+          </p>
+          <p>
+            Of every dollar billed, only ~40% lands as cash within the bonus
+            window — Texas-Medicaid's 0.52× index, payer mix dragged toward
+            self-pay, and adjudication lag together strip 60¢ off the top.
+            A bonus pool sized against billed revenue commits the clinic to
+            an outflow it has not yet collected. Cost Predictor replaces
+            <em>billed</em> with <em>p10 realized</em>.
+          </p>
+
+          <table>
+            <caption>$5M-monthly clinic — 5% bonus pool, naive vs Cost-Predictor</caption>
+            <thead>
+              <tr><th>Approach</th><th class="num">Pool size</th><th class="num">Over-allocation risk</th><th class="num">Breach&nbsp;p10</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Naive · 5% of billed</td>
+                <td class="num">$250,000</td>
+                <td class="num warn">structural</td>
+                <td class="num">—</td>
+              </tr>
+              <tr>
+                <td>Approach A · 5% of p10 realized</td>
+                <td class="num">~$216,718 left vs perfect</td>
+                <td class="num">0.0%</td>
+                <td class="num warn">0.112 ⚠</td>
+              </tr>
+              <tr>
+                <td><strong>Approach B · 5% of p10 realized (by-payer)</strong></td>
+                <td class="num"><strong>~$230,684 left vs perfect</strong></td>
+                <td class="num win"><strong>0.0%</strong></td>
+                <td class="num win"><strong>0.023</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>
+            Reading: under Approach&nbsp;B by-payer, the clinic leaves
+            ~$230,684 on the table per evaluation window
+            (vs a counterfactual perfect-foresight pool of $250,000) — and
+            in <strong>zero</strong> origin windows did the p10-sized pool
+            exceed the actual 5% of realized. That second number is the
+            point: the clinic structurally cannot over-allocate at this
+            sizing.
+          </p>
+          <p class="callout">
+            The trade-off is real — under-payment of bonuses is recoverable
+            (a true-up at quarter-end), over-payment is not. Cost
+            Predictor's design preference is conservative-first.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== USE CASE 2 ========== -->
+    <section class="container" id="cashflow">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>Use&nbsp;02</span>
+          <em>Per-payer lag curves answer "when does the money arrive?" directly.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">Use 2</span>Cash-flow planning</h2>
+          <p>
+            Below: cumulative realization over 90 days for each payer,
+            using the LogNormal lag parameters from
+            <code>config/adjudication_params.yaml</code>. Curves are the
+            survival CDF <code>F(t; μ, σ)</code> — the fraction of paid
+            dollars that have arrived by day <code>t</code>.
+          </p>
+
+          <figure class="figure">
+            <svg id="lag-chart" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cumulative realization curves over 90 days, by payer"></svg>
+            <figcaption>
+              <strong>Fig 2</strong> Medicare FFS clears the fastest by design
+              — the SSA §1842(c) clean-claim 14-day floor anchors the curve.
+              Self-pay's long flat tail is the structural enemy of cash-flow
+              forecasting and the reason the LogNormal tail (rather than a
+              bare Kaplan–Meier curve) matters in §4 of the methodology.
+            </figcaption>
+          </figure>
+
+          <p>
+            The operational read: at day&nbsp;30, Medicare FFS has paid ~95%
+            of its committed dollars; Medicaid MCO is at ~38%; self-pay
+            is at ~7%. A clinic projecting 30-day cash from a $5M billed
+            month will see materially different cash on hand depending on
+            which payer those dollars came from — which is the whole reason
+            the model is decomposed by payer rather than pooled.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== USE CASE 3 ========== -->
+    <section class="container" id="mix-sensitivity">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>Use&nbsp;03</span>
+          <em>The Texas-Medicaid weight is the single largest mix lever. Move it 5pp and watch the p10 move.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">Use 3</span>Payer-mix sensitivity</h2>
+          <p>
+            Three planning scenarios on a $5M-monthly clinic. Numbers are
+            point-estimate <em>expected realized</em> (deterministic
+            denial × <code>E[GCR]</code> per payer; equivalent to the
+            mean of the demo's Monte-Carlo trials at 5,000 N).
+          </p>
+
+          <table>
+            <caption>Expected realized, three payer-mix scenarios</caption>
+            <thead>
+              <tr>
+                <th>Mix scenario</th>
+                <th class="num">Medicaid&nbsp;MCO</th>
+                <th class="num">Commercial</th>
+                <th class="num">Self-pay</th>
+                <th class="num">E[realized]</th>
+                <th class="num">Realization rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>HRSA UDS Texas (default)</td>
+                <td class="num">25%</td>
+                <td class="num">27%</td>
+                <td class="num">28%</td>
+                <td class="num">$1.96M</td>
+                <td class="num">39.2%</td>
+              </tr>
+              <tr>
+                <td>+5pp commercial, −5pp self-pay</td>
+                <td class="num">25%</td>
+                <td class="num">32%</td>
+                <td class="num">23%</td>
+                <td class="num win">$2.16M</td>
+                <td class="num win">43.2%</td>
+              </tr>
+              <tr>
+                <td>+5pp Medicaid MCO, −5pp commercial</td>
+                <td class="num">30%</td>
+                <td class="num">22%</td>
+                <td class="num">28%</td>
+                <td class="num">$1.84M</td>
+                <td class="num">36.8%</td>
+              </tr>
+              <tr>
+                <td>−10pp self-pay, split commercial / Medicaid MCO</td>
+                <td class="num">30%</td>
+                <td class="num">32%</td>
+                <td class="num">18%</td>
+                <td class="num win">$2.27M</td>
+                <td class="num win">45.4%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>
+            Two business reads stand out. First, dropping self-pay 10pp
+            (split into Medicaid MCO and commercial) lifts realization
+            ~6pp — bigger than any plausible operational efficiency gain.
+            Second, the <em>direction</em> of a +5pp Medicaid MCO move
+            depends on what it displaces; against commercial, it's a net
+            drag, against self-pay it's neutral-to-positive on realization
+            but speeds up cash (lag mean 35d vs 60d+ for self-pay).
+          </p>
+          <p>
+            Try this in the live demo — drag a slider, watch the headline
+            numbers and the per-payer bar chart shift in real time.
+          </p>
+          <p>
+            <a class="btn" href="demo.html">Open the live demo</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== LIMITATIONS ========== -->
+    <section class="container" id="limitations">
+      <div class="layout-margin">
+        <aside class="marginalia">
+          <span>§</span>
+          <em>Read this before quoting numbers in a planning meeting.</em>
+        </aside>
+        <div class="prose">
+          <h2><span class="section-num">§</span>Limitations</h2>
+          <p>
+            From §5.2 of the system-design document, in the model authors'
+            own words. Don't oversell.
+          </p>
+          <ul class="limit-list">
+            <li>
+              <strong>Synthetic data only.</strong> Population is Synthea
+              v4.0.0 with custom Texas Medicaid MCO encoding. Demographics
+              are seeded to Houston, but Synthea's eligibility-driven mix
+              under-weights Medicaid/uninsured vs HRSA UDS Texas FQHC mix.
+              Demographic re-weighting is deferred.
+            </li>
+            <li>
+              <strong>Single-remit only.</strong> Initial pay → recoupment
+              → secondary ladders are not modeled. Multi-remit support
+              waits on real 835 ERA data, where the structural change can
+              be made against a measured ground truth.
+            </li>
+            <li>
+              <strong>Texas-specific priors.</strong> Lag and GCR priors
+              are seeded from Texas TDI prompt-pay statutes, KFF Texas
+              fee index, and Premier 2024 hospital denial rates. Deploying
+              outside Texas requires re-seeding the YAML — not a model
+              change, but a calibration step.
+            </li>
+            <li>
+              <strong>Public-source-bounded accuracy ceiling.</strong>
+              Per-payer lag and realization-rate priors are <em>priors</em>,
+              not measurements. Until a partner-clinic 835 feed lands,
+              the accuracy claim is bounded to "directionally useful for
+              cash-flow risk management against the configured payer mix;
+              not a substitute for clinic-specific historical
+              adjudication data."
+            </li>
+            <li>
+              <strong>Phase 2 (denial classifier) not implemented.</strong>
+              The Bernoulli denial draw inside the convolver substitutes
+              for the documented XGBoost / LightGBM classifier. Acceptable
+              while terminal-denial rates are bracketed at 4–8% and
+              dwarfed by lag and GCR uncertainty in pooled forecast variance.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p class="colophon">
+        Numbers on this page are drawn from <code>report/phase6.md</code>
+        in the source repo (auto-generated; regenerate with
+        <code>python -m cost_predictor.experiments.report --output report/phase6.md
+          --reference-monthly 5000000 --latest-only</code>).
+      </p>
+      <p class="footer-meta">
+        © 2026 · GrayBeam Technology<br>
+        Houston · Locality 18
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/site.js"></script>
+  <script>
+    /* Inline lag-curve renderer — small enough not to merit a separate file */
+    (function () {
+      const PAYERS = [
+        { id: "medicare_ffs",        label: "Medicare FFS",        mu: 2.6, sigma: 0.3, color: "#1B1A17" },
+        { id: "medicare_advantage",  label: "Medicare Advantage",  mu: 2.8, sigma: 0.4, color: "#3C3A35" },
+        { id: "commercial",          label: "Commercial",          mu: 3.4, sigma: 0.4, color: "#7A2E2E" },
+        { id: "medicaid_ffs",        label: "Medicaid FFS",        mu: 3.3, sigma: 0.5, color: "#5E2222" },
+        { id: "medicaid_mco",        label: "Medicaid MCO",        mu: 3.4, sigma: 0.6, color: "#8E8676" },
+        { id: "self_pay",            label: "Self-pay",            mu: 4.5, sigma: 1.0, color: "#9A9286" },
+      ];
+
+      // Standard normal CDF approximation (Abramowitz & Stegun 26.2.17)
+      function ndtr(z) {
+        const t = 1 / (1 + 0.2316419 * Math.abs(z));
+        const d = 0.3989422804 * Math.exp(-z * z / 2);
+        const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+        return z >= 0 ? 1 - p : p;
+      }
+      // LogNormal CDF F(t; μ, σ) = Φ((ln t − μ) / σ)
+      function lognCDF(t, mu, sigma) {
+        if (t <= 0) return 0;
+        return ndtr((Math.log(t) - mu) / sigma);
+      }
+
+      function render() {
+        const svg = document.getElementById("lag-chart");
+        if (!svg) return;
+        const w = 720, h = 360;
+        svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+        const padTop = 28, padBottom = 50, padLeft = 50, padRight = 180;
+        const plotW = w - padLeft - padRight;
+        const plotH = h - padTop - padBottom;
+        const tMax = 90;
+
+        let s = "";
+
+        // Axes
+        s += '<line x1="' + padLeft + '" y1="' + padTop + '" x2="' + padLeft + '" y2="' + (padTop + plotH) + '" stroke="#1B1A17" stroke-width="1"/>';
+        s += '<line x1="' + padLeft + '" y1="' + (padTop + plotH) + '" x2="' + (padLeft + plotW) + '" y2="' + (padTop + plotH) + '" stroke="#1B1A17" stroke-width="1"/>';
+
+        // Y-axis ticks (0, 25, 50, 75, 100%)
+        for (let p = 0; p <= 100; p += 25) {
+          const y = padTop + plotH - (p / 100) * plotH;
+          s += '<line x1="' + (padLeft - 4) + '" y1="' + y + '" x2="' + padLeft + '" y2="' + y + '" stroke="#1B1A17" stroke-width="0.6"/>';
+          s += '<text x="' + (padLeft - 8) + '" y="' + (y + 3) + '" text-anchor="end" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" font-variant-numeric="tabular-nums" fill="#6B655B">' + p + '%</text>';
+          if (p > 0) {
+            s += '<line x1="' + padLeft + '" y1="' + y + '" x2="' + (padLeft + plotW) + '" y2="' + y + '" stroke="#E2DACB" stroke-width="0.5" stroke-dasharray="2,3"/>';
+          }
+        }
+
+        // X-axis ticks (0, 14, 30, 45, 60, 90)
+        const xTicks = [0, 14, 30, 45, 60, 90];
+        xTicks.forEach((d) => {
+          const x = padLeft + (d / tMax) * plotW;
+          s += '<line x1="' + x + '" y1="' + (padTop + plotH) + '" x2="' + x + '" y2="' + (padTop + plotH + 4) + '" stroke="#1B1A17" stroke-width="0.6"/>';
+          s += '<text x="' + x + '" y="' + (padTop + plotH + 18) + '" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" font-variant-numeric="tabular-nums" fill="#6B655B">d' + d + '</text>';
+        });
+        s += '<text x="' + (padLeft + plotW / 2) + '" y="' + (padTop + plotH + 38) + '" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" letter-spacing="0.18em" fill="#9A9286">DAYS SINCE BILLING</text>';
+        s += '<text x="14" y="' + (padTop + plotH / 2) + '" transform="rotate(-90 14 ' + (padTop + plotH / 2) + ')" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" letter-spacing="0.18em" fill="#9A9286">CUMULATIVE&nbsp;PAID</text>';
+
+        // Curves
+        const stepDays = 1;
+        PAYERS.forEach((p, idx) => {
+          let path = "";
+          let lastY = padTop + plotH;
+          for (let t = 0; t <= tMax; t += stepDays) {
+            const F = lognCDF(t, p.mu, p.sigma);
+            const x = padLeft + (t / tMax) * plotW;
+            const y = padTop + plotH - F * plotH;
+            path += (t === 0 ? "M " : "L ") + x.toFixed(1) + " " + y.toFixed(1) + " ";
+            lastY = y;
+          }
+          s += '<path d="' + path + '" fill="none" stroke="' + p.color + '" stroke-width="' + (p.id === "self_pay" || p.id === "medicare_ffs" ? 1.8 : 1.3) + '"/>';
+
+          // End-of-curve label
+          const endX = padLeft + plotW;
+          s += '<line x1="' + endX + '" y1="' + lastY + '" x2="' + (endX + 6) + '" y2="' + lastY + '" stroke="' + p.color + '" stroke-width="1"/>';
+          s += '<text x="' + (endX + 10) + '" y="' + (lastY + 3) +
+            '" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" fill="' + p.color + '">' + p.label + '</text>';
+        });
+
+        // Annotations: 14d and 30d
+        s += '<line x1="' + (padLeft + (14 / tMax) * plotW) + '" y1="' + padTop + '" x2="' + (padLeft + (14 / tMax) * plotW) + '" y2="' + (padTop + plotH) + '" stroke="#7A2E2E" stroke-width="0.5" stroke-dasharray="2,3"/>';
+        s += '<text x="' + (padLeft + (14 / tMax) * plotW + 4) + '" y="' + (padTop + 12) +
+          '" font-family="Iowan Old Style, Charter, ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#7A2E2E">Medicare clean-claim floor</text>';
+
+        svg.innerHTML = s;
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", render);
+      } else {
+        render();
+      }
+    })();
+  </script>
+</body>
+</html>
