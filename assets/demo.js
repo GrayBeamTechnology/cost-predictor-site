@@ -5,8 +5,8 @@
  *   for each payer p:
  *     billed_p     = monthlyBilled * mix[p]
  *     denied_t_p   = clamp(denial_p + N(0, denial_p*0.15), 0, 1)
- *     gcr_t_p      = Beta(α_p, β_p)       // Marsaglia–Tsang via two Gammas
- *     realized_t  += billed_p * (1 - denied_t_p) * gcr_t_p
+ *     realization_t_p = Beta(α_p, β_p)    // conditional on non-denial
+ *     realized_t     += billed_p * (1 - denied_t_p) * realization_t_p
  * Quantiles drawn from the sorted realized_t array.
  *
  * Per-payer priors copied from cost-predictor/config/adjudication_params.yaml.

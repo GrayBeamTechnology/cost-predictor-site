@@ -223,7 +223,7 @@
             keyed on Date of Service) and produces a daily aggregate. The
             evaluation harness substitutes Synthea v4.0.0 with a Texas-Medicaid
             MCO encoding plus a post-generation adjudication injector that
-            attaches per-payer denial / lag / GCR draws.
+            attaches per-payer denial / lag / paid-claim realization draws.
           </p>
 
           <h3>State of Phase 2</h3>
@@ -233,7 +233,7 @@
             the per-payer Bernoulli denial draw inside the Monte-Carlo convolver
             stands in for the classifier's expected output — a defensible
             simplification while terminal-denial empirical rates are bracketed
-            at 4–8% and dwarfed by lag and GCR uncertainty in the pooled
+            at 4–8% and dwarfed by lag and realization-rate uncertainty in the pooled
             forecast variance.
           </p>
         </div>
@@ -260,19 +260,20 @@
               quantile output, done.</li>
             <li><strong>Approach B.</strong> Decompose. Forecast <em>billed</em>
               revenue with TimesFM, then convolve through per-payer lag
-              curves and a Beta-GCR factor inside a Monte-Carlo simulator
+              curves and a paid-claim realization factor inside a Monte-Carlo simulator
               to produce realized.</li>
           </ul>
           <p>
             On pooled origin evaluation, A passes the product threshold
-            (<code>breach_rate_p10&nbsp;= 0.069</code>). When evaluation is
+            (<code>row breach_rate_p10&nbsp;= 0.0998</code>). When evaluation is
             broken out per payer — the mode clinic admins actually need —
-            A breaches threshold on <strong>three of five payers</strong>.
-            B passes everywhere.
+            A breaches the row-level threshold on <strong>two of five payers</strong>.
+            B passes every payer, with zero window-level breach after summed
+            origin/horizon bonus windows.
           </p>
 
           <table>
-            <caption>Per-payer breach rate at p10, Synthea, no calibration</caption>
+            <caption>Per-payer row breach rate at p10, Synthea, no calibration</caption>
             <thead>
               <tr>
                 <th>Payer</th>
@@ -281,12 +282,13 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td>Commercial</td><td class="num warn">0.1004 ⚠</td><td class="num">0.0738</td></tr>
-              <tr><td>Medicaid MCO</td><td class="num warn">0.1778 ⚠</td><td class="num">0.0000</td></tr>
-              <tr><td>Medicare Advantage</td><td class="num">0.0159</td><td class="num">0.0000</td></tr>
-              <tr><td>Medicare FFS</td><td class="num">0.0835</td><td class="num">0.0165</td></tr>
-              <tr><td>Self-pay</td><td class="num warn">0.1142 ⚠</td><td class="num">0.0000</td></tr>
-              <tr><td><strong>Pooled</strong></td><td class="num warn"><strong>0.1122 ⚠</strong></td><td class="num win"><strong>0.0230</strong></td></tr>
+              <tr><td>Commercial</td><td class="num warn">0.1004 ⚠</td><td class="num">0.0802</td></tr>
+              <tr><td>Medicaid MCO</td><td class="num warn">0.1093 ⚠</td><td class="num">0.0000</td></tr>
+              <tr><td>Medicare Advantage</td><td class="num">0.0585</td><td class="num">0.0000</td></tr>
+              <tr><td>Medicare FFS</td><td class="num">0.0835</td><td class="num">0.0179</td></tr>
+              <tr><td>Self-pay</td><td class="num">0.0962</td><td class="num">0.0000</td></tr>
+              <tr><td><strong>Pooled rows</strong></td><td class="num"><strong>0.0896</strong></td><td class="num win"><strong>0.0196</strong></td></tr>
+              <tr><td><strong>Pooled windows</strong></td><td class="num win"><strong>0.0000</strong></td><td class="num win"><strong>0.0000</strong></td></tr>
             </tbody>
           </table>
 
@@ -389,7 +391,7 @@
             <li><strong>Lag-shift each payer's dollars.</strong> Sample a lag
               from that payer's curve for every dollar; accumulate the dollar
               into the period it lands in. Apply the deterministic realization
-              factor <code>(1 - denial_p) × E[GCR_p]</code>.</li>
+              factor <code>(1 - denial_p) × E[paid-claim realization_p]</code>.</li>
           </ol>
           <p>
             <strong>Carryforward.</strong> Pre-origin outstanding dollars
@@ -399,11 +401,11 @@
             periods. This is load-bearing for early-horizon accuracy — without
             it, the first 14 days of any forecast underbills systematically.
           </p>
-          <h3>Why deterministic GCR &amp; denial</h3>
+          <h3>Why deterministic realization &amp; denial</h3>
           <p>
-            The Beta-GCR variance and the binary denial draw contribute small
+            The Beta realization variance and the binary denial draw contribute small
             tail width relative to the lag and billing-quantile draws when
-            aggregated to a daily/weekly period. Using <code>E[GCR]</code> and
+            aggregated to a daily/weekly period. Using <code>E[paid-claim realization]</code> and
             <code>E[deny] = denial_p</code> as the per-dollar realization factor
             keeps the convolver fast (~5,000 trials × 6 payers × 30-day
             horizon in &lt;100&nbsp;ms) without measurable loss of fidelity
@@ -451,8 +453,9 @@
             test is the proportion in the edge bin — the fraction of held-out
             actuals that fall below the p10. That's the
             <code>breach_rate_p10</code>. Approach&nbsp;B's per-payer
-            histogram shows <span class="num-tab">0.023</span> in the
-            below-p10 bin — well-calibrated and conservative.
+            evaluation shows <span class="num-tab">0.0196</span> in the
+            below-p10 row bin and <span class="num-tab">0.0000</span> at the
+            summed-window bonus-pool surface — conservative but operationally safe.
           </p>
 
           <h3>Calibration wrappers</h3>
@@ -460,11 +463,11 @@
             Two post-hoc calibration wrappers sit in the evaluation harness:
             <strong>split-conformal</strong> (residual-based) and
             <strong>isotonic-PIT</strong> (monotone re-mapping of nominal
-            to empirical CDF). Both help ARIMA on Synthea (where analytic
-            Gaussian intervals over-conservate and breach drops too low);
-            neither helps TimesFM-A or TimesFM-B, which are quantile-native.
-            Split-conformal in particular over-corrects A —
-            <code>0.069 → 0.158</code>, pushing past the threshold.
+            to empirical CDF). Both remain useful for baseline diagnostics,
+            but neither is the production mode. On the regenerated dense-grid
+            matrix, split-conformal pushes TimesFM-B above the row-level
+            threshold (<code>0.0944 → 0.1060</code>) while window breach remains
+            0.0; production therefore stays uncalibrated.
           </p>
         </div>
       </div>
@@ -512,7 +515,7 @@
             mix differs structurally from HRSA UDS Texas FQHC Table 4
             (Synthea-heavy Medicare/commercial; FQHC-heavy
             Medicaid/uninsured). Closing it requires demographic re-weighting,
-            deferred. Per-payer behavioral fidelity (denial / lag / GCR) —
+            deferred. Per-payer behavioral fidelity (denial / lag / realization) —
             which drives the p10/p90 width that the bonus-pool decision
             depends on — is intact.
           </p>
@@ -525,7 +528,7 @@
   <footer class="site-footer">
     <div class="site-footer__inner">
       <p class="colophon">
-        Source: <a href="https://github.com/GrayBeamTechnology/cost-predictor">github.com/GrayBeamTechnology/cost-predictor</a> · 155 unit tests pass in ~7s. The full system-design document, with citations, lives in <code>SYSTEM_DESIGN.md</code> in the repo.
+        Source: <a href="https://github.com/GrayBeamTechnology/cost-predictor">github.com/GrayBeamTechnology/cost-predictor</a> · 158 unit tests pass in ~14s. The full system-design document, with citations, lives in <code>SYSTEM_DESIGN.md</code> in the repo.
       </p>
       <p class="footer-meta">
         © 2026 · GrayBeam Technology<br>

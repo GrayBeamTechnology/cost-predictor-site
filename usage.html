@@ -51,10 +51,11 @@
         <div class="prose">
           <h2><span class="section-num">Use 1</span>Sizing a bonus pool</h2>
           <p class="dropcap">
-            A primary-care clinic with $5M/month in billed revenue wants to
-            allocate 5% to a physician/staff bonus pool. The naive
-            arithmetic: <code>5,000,000 × 0.05 = 250,000</code>. Easy.
-            Wrong.
+            A primary-care clinic with $5M/month in realized revenue wants to
+            allocate 5% to a physician/staff bonus pool. Over the regenerated
+            60-day evaluation window, the perfect-foresight pool would be
+            <code>10,000,000 × 0.05 = 500,000</code>. The operational question:
+            how much of that can be committed safely before remits arrive?
           </p>
           <p>
             Of every dollar billed, only ~40% lands as cash within the bonus
@@ -66,37 +67,37 @@
           </p>
 
           <table>
-            <caption>$5M-monthly clinic — 5% bonus pool, naive vs Cost-Predictor</caption>
+            <caption>$5M-monthly clinic — 60-day window, 5% bonus pool</caption>
             <thead>
-              <tr><th>Approach</th><th class="num">Pool size</th><th class="num">Over-allocation risk</th><th class="num">Breach&nbsp;p10</th></tr>
+              <tr><th>Approach</th><th class="num">Median under-allocation</th><th class="num">Over-allocation risk</th><th class="num">Row breach p10</th></tr>
             </thead>
             <tbody>
               <tr>
-                <td>Naive · 5% of billed</td>
-                <td class="num">$250,000</td>
-                <td class="num warn">structural</td>
+                <td>Perfect foresight · 5% of actual realized</td>
+                <td class="num">—</td>
+                <td class="num">0.0%</td>
                 <td class="num">—</td>
               </tr>
               <tr>
                 <td>Approach A · 5% of p10 realized</td>
-                <td class="num">~$216,718 left vs perfect</td>
+                <td class="num">~$433,684 left vs perfect</td>
                 <td class="num">0.0%</td>
-                <td class="num warn">0.112 ⚠</td>
+                <td class="num">0.090</td>
               </tr>
               <tr>
                 <td><strong>Approach B · 5% of p10 realized (by-payer)</strong></td>
-                <td class="num"><strong>~$230,684 left vs perfect</strong></td>
+                <td class="num"><strong>~$462,848 left vs perfect</strong></td>
                 <td class="num win"><strong>0.0%</strong></td>
-                <td class="num win"><strong>0.023</strong></td>
+                <td class="num win"><strong>0.020</strong></td>
               </tr>
             </tbody>
           </table>
 
           <p>
             Reading: under Approach&nbsp;B by-payer, the clinic leaves
-            ~$230,684 on the table per evaluation window
-            (vs a counterfactual perfect-foresight pool of $250,000) — and
-            in <strong>zero</strong> origin windows did the p10-sized pool
+            ~$462,848 on the table per 60-day evaluation window
+            (vs a counterfactual perfect-foresight pool of $500,000) — and
+            in <strong>zero</strong> origin/horizon windows did the p10-sized pool
             exceed the actual 5% of realized. That second number is the
             point: the clinic structurally cannot over-allocate at this
             sizing.
@@ -162,7 +163,7 @@
           <p>
             Three planning scenarios on a $5M-monthly clinic. Numbers are
             point-estimate <em>expected realized</em> (deterministic
-            denial × <code>E[GCR]</code> per payer; equivalent to the
+            denial × <code>E[paid-claim realization]</code> per payer; equivalent to the
             mean of the demo's Monte-Carlo trials at 5,000 N).
           </p>
 
@@ -262,7 +263,7 @@
               be made against a measured ground truth.
             </li>
             <li>
-              <strong>Texas-specific priors.</strong> Lag and GCR priors
+              <strong>Texas-specific priors.</strong> Lag and paid-claim realization priors
               are seeded from Texas TDI prompt-pay statutes, KFF Texas
               fee index, and Premier 2024 hospital denial rates. Deploying
               outside Texas requires re-seeding the YAML — not a model
@@ -282,7 +283,7 @@
               The Bernoulli denial draw inside the convolver substitutes
               for the documented XGBoost / LightGBM classifier. Acceptable
               while terminal-denial rates are bracketed at 4–8% and
-              dwarfed by lag and GCR uncertainty in pooled forecast variance.
+              dwarfed by lag and realization-rate uncertainty in pooled forecast variance.
             </li>
           </ul>
         </div>

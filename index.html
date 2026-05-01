@@ -52,17 +52,17 @@
             <div class="stat-grid">
               <div class="stat">
                 <div class="stat__label">Approach&nbsp;B · per-payer</div>
-                <div class="stat__value stat__value--accent num-old">0.023</div>
-                <div class="stat__sub">breach rate at p10 (target ≤ 0.10)</div>
+                <div class="stat__value stat__value--accent num-old">0.0196</div>
+                <div class="stat__sub">row breach at p10; window breach 0.0000</div>
               </div>
               <div class="stat">
-                <div class="stat__label">Approach&nbsp;A · per-payer</div>
-                <div class="stat__value num-old">0.112</div>
-                <div class="stat__sub">⚠ exceeds threshold on 3&nbsp;of&nbsp;5 payers</div>
+                <div class="stat__label">Approach&nbsp;A · max payer</div>
+                <div class="stat__value num-old">0.109</div>
+                <div class="stat__sub">⚠ row threshold flags 2&nbsp;of&nbsp;5 payers</div>
               </div>
             </div>
             <p class="footer-meta" style="text-align:left; margin-top:.9rem;">
-              Synthea · 2-year window · pooled origin&nbsp;eval
+              Synthea · dense daily grid · 2026-05-01 regeneration
             </p>
           </aside>
         </div>
@@ -97,8 +97,9 @@
           <h3>Bonus-pool sizing</h3>
           <p>
             One worked answer: a $5M-monthly clinic sizing 5% of p10 leaves
-            roughly <span class="num-tab">$230K</span> on the table per window
-            versus a perfect-forecast counterfactual — and zero over-allocation risk.
+            roughly <span class="num-tab">$463K</span> on the table per 60-day
+            window versus a $500K perfect-forecast counterfactual — and zero
+            over-allocation risk.
           </p>
         </article>
       </div>
@@ -125,8 +126,9 @@
           </p>
           <p>
             Approach&nbsp;A — a single pooled time-series forecast of realized revenue —
-            looks fine in aggregate (<span class="num-tab">0.069</span> pooled breach)
-            but fails per-payer reporting. Approach&nbsp;B passes everywhere.
+            looks fine in aggregate (<span class="num-tab">0.0998</span> pooled row breach)
+            but still flags payer-specific row breaches. Approach&nbsp;B passes
+            every payer and every summed bonus window.
             <a href="methodology.html#approaches">Why →</a>
           </p>
         </div>
@@ -147,7 +149,7 @@
             Cost Predictor is a Python research artifact, not a commercial product.
             It runs on synthetic patient data from <a href="https://github.com/synthetichealth/synthea">Synthea&nbsp;v4.0.0</a>
             (Harris-County demographics, Texas Medicaid MCO payer encoding) and
-            calibrates per-payer denial / lag / GCR priors against published sources:
+            calibrates per-payer denial / lag / paid-claim realization priors against published sources:
           </p>
           <ul class="dash">
             <li>KFF · Medicaid-to-Medicare fee index, 2024 (Texas primary-care 0.52)</li>

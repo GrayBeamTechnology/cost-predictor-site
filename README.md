@@ -2,7 +2,7 @@
 
 Static site for [Cost Predictor](https://github.com/GrayBeamTechnology/cost-predictor) — a research POC that forecasts realized medical revenue (cash that arrives) versus gross billed (invoice amounts) for primary-care clinics in Harris County, TX. Built to be hosted on GitHub Pages.
 
-Five pages: Overview, Methodology, Use cases, Live demo, Install. The live demo is a pure-JS Monte-Carlo simulator (no framework, no build step) using per-payer denial / Beta-GCR priors copied from `config/adjudication_params.yaml` upstream.
+Five pages: Overview, Methodology, Use cases, Live demo, Install. The live demo is a pure-JS Monte-Carlo simulator (no framework, no build step) using per-payer denial / paid-claim realization priors copied from `config/adjudication_params.yaml` upstream.
 
 Editorial / NEJM-meets-Stripe visual direction. Cream paper, deep ink, single muted-claret accent, system serif (Iowan Old Style) and system sans. No third-party fonts, no analytics, no CDN dependencies. Hand-rolled SVG diagrams and charts.
 
